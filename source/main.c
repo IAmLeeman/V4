@@ -1,0 +1,182 @@
+#include <ppu-lv2.h>
+
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <malloc.h>
+#include <string.h>
+#include <assert.h>
+#include <unistd.h>
+#include <string.h>
+
+#include <sysutil/video.h>
+#include <rsx/gcm_sys.h>
+#include <rsx/rsx.h>
+
+#include <io/pad.h>
+#include "rsxutil.h"
+
+#include <audio/audio.h>
+//#include <cell/fs/cell_fs_file_api.h>
+#include <sysmodule/sysmodule.h>
+
+#define MAX_BUFFERS 2
+#define IMAGE_WIDTH 1280  // DEFAULT VALUES
+#define IMAGE_HEIGHT 720  // DEFAULT VALUES
+
+#define BG_PATH "/dev_hdd0/images/bg/"
+#define MONIKA_PATH "/dev_hdd0/images/monika/"
+#define SAYORI_PATH "/dev_hdd0/images/sayori/"
+
+gcmContextData *context;
+uint8_t *rawTexture = NULL;
+void *host_addr = NULL;
+
+char path_buffer[256];
+
+void load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){
+
+  FILE* file = fopen(path, "rb");
+  if (!file) {
+    printf("Failed to open image: %s\n", path);
+    return;
+  }
+  size_t imageSize = width * height * 4; // Assuming ARGB format (4 bytes per pixel)
+  void rsx_texture_mem = rsxMemalign(128, imageSize);
+
+  if (!rsx_texture_mem) {
+    printf("Failed to allocate memory for texture: %s\n", path);
+    fclose(file);
+    return NULL;
+  } 
+  else {
+    printf("Allocated memory for texture: %s\n", path);
+  }
+    fclose(file);
+
+    void* buffer = malloc(imageSize);
+    fread(buffer, 1, imageSize, file);
+    fclose(file);
+
+    printf("Image loaded successfully (%d bytes): %s\n", (int)imageSize, path);
+    return buffer;
+  
+}
+
+void load_and_draw_bg(rsxBuffer* fb, const char* filename, const char* batch, int width, int height){
+
+  snprintf(path_buffer, sizeof(path_buffer), "%s%s", batch, filename);
+
+  
+  void* imageData = load_raw_argb(path_buffer, width, height);
+  if (!imageData) {
+    printf("Failed to load image: %s\n", path_buffer);
+    return;
+  }
+  drawImage(fb, imageData, width, height);
+  free(imageData);
+
+  // Sanity check for the CPU, if it shows some background image then it is working.
+}
+
+void drawFrame(rsxBuffer *buffer, long frame) {
+  s32 i, j;
+  for(i = 0; i < buffer->height; i++) {
+    s32 color = (i / (buffer->height * 1.0) * 256);
+    // This should make a nice black to green gradient
+    color = (color << 8) | ((frame % 255) << 16);
+    for(j = 0; j < buffer->width; j++)
+      buffer->ptr[i* buffer->width + j] = color;
+  }
+}
+
+void drawImage(rsxBuffer *buffer, const u8 *image_data, int image_width, int image_height){
+  for (int y = 0; y < buffer->height && y < image_height; y++) {
+    for (int x = 0; x < buffer->width && x < image_width; x++) {
+      int i = y * image_width + x;
+      int a = image_data[i * 4 + 0];
+      int r = image_data[i * 4 + 1];
+      int g = image_data[i * 4 + 2];
+      int b = image_data[i * 4 + 3];
+
+      // Pack ARGB to match RSX format
+      buffer->ptr[y * buffer->width + x] = (a << 24) | (r << 16) | (g << 8) | b;
+    }
+    // Draws image data to the CPU.
+    
+  }
+}
+
+int main(s32 argc, const char* argv[])
+{
+  
+  //sysModuleLoad(SYSMODULE_FS);
+  //sysModuleLoad(SYSMODULE_AUDIO);
+  //cellAudioInit();
+  
+  rsxBuffer buffers[MAX_BUFFERS];
+  int currentBuffer = 0;
+  padInfo padinfo;
+  padData paddata;
+  u16 width = 1280;
+  u16 height = 720;
+  int i;
+  
+  load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
+  // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
+ 
+  /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
+   * to be our shared IO memory with the RSX. */
+  host_addr = memalign (1024*1024, HOST_SIZE);
+  context = initScreen (host_addr, HOST_SIZE);
+  ioPadInit(7);
+
+  getResolution(&width, &height);
+  for (i = 0; i < MAX_BUFFERS; i++)
+    makeBuffer( &buffers[i], width, height, i);
+
+  flip(context, MAX_BUFFERS - 1);
+  
+  long frame = 0; // To keep track of how many frames we have rendered.
+	
+  // Ok, everything is setup. Now for the main loop.
+  while(1){
+    // Check the pads.
+    /*ioPadGetInfo(&padinfo);
+    for(i=0; i<MAX_PADS; i++){
+      if(padinfo.status[i]){
+	ioPadGetData(i, &paddata);
+				
+	if(paddata.BTN_START){
+	  goto end;
+	}
+      }
+			
+    } */
+
+    waitFlip(); // Wait for the last flip to finish, so we can draw to the old buffer
+    //drawFrame(&buffers[currentBuffer], frame++); // Draw into the unused buffer
+    //drawImage(&buffers[currentBuffer], imageData, IMAGE_WIDTH, IMAGE_HEIGHT);
+    //load_and_draw_bg(&buffers[currentBuffer], "bedroom.raw", BG_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
+    //load_and_draw_bg(&buffers[currentBuffer], "2r.raw", MONIKA_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
+    // This is not SDL - you can't layer one image over another and call it a day.
+    
+    flip(context, buffers[currentBuffer].id); // Flip buffer onto screen
+
+    currentBuffer++;
+    if (currentBuffer >= MAX_BUFFERS)
+      currentBuffer = 0;
+  }
+  
+ end:
+
+  gcmSetWaitFlip(context);
+  for (i = 0; i < MAX_BUFFERS; i++)
+    rsxFree(buffers[i].ptr);
+
+  rsxFinish(context, 1);
+  free(host_addr);
+  ioPadEnd();
+	
+  return 0;
+}
