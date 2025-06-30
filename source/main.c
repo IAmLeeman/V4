@@ -1,3 +1,9 @@
+// DOKI DOKI LITERATURE CLUB //
+// PS3 PORT // 
+// SUPAHAXOR // 30/06/2025 //
+// GAME IS COPYRIGHT TO TEAM SALVATO //
+// V4.20 // SOURCE.c //
+
 #include <ppu-lv2.h>
 
 #include <stdio.h>
@@ -32,34 +38,48 @@ gcmContextData *context;
 uint8_t *rawTexture = NULL;
 void *host_addr = NULL;
 
-char path_buffer[256];
+char path_buffer[256];    // Stores the path to the image file
 
-void load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){
+void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){
 
   FILE* file = fopen(path, "rb");
   if (!file) {
     printf("Failed to open image: %s\n", path);
-    return;
+    return NULL;
   }
   size_t imageSize = width * height * 4; // Assuming ARGB format (4 bytes per pixel)
-  void rsx_texture_mem = rsxMemalign(128, imageSize);
+  printf("Requesting RSX memory for texture: %s (%d bytes)\n", path, (int)imageSize);
+
+  void* rsx_texture_mem = rsxMemalign(128, imageSize);
 
   if (!rsx_texture_mem) {
     printf("Failed to allocate memory for texture: %s\n", path);
     fclose(file);
     return NULL;
   } 
-  else {
-    printf("Allocated memory for texture: %s\n", path);
+  
+  printf("Allocated memory for texture: %s\n", path);
+  
+  void* temp_buffer = malloc(imageSize);
+  if(!temp_buffer) {
+      printf("Failed to allocate temporary buffer for image: %s\n", path);
+      rsxFree(rsx_texture_mem);
+      fclose(file);
+      return NULL;
   }
-    fclose(file);
-
-    void* buffer = malloc(imageSize);
-    fread(buffer, 1, imageSize, file);
+  size_t readBytes = fread(temp_buffer, 1, imageSize, file);
+  if (readBytes != imageSize) {
+    printf("Failed to read image data: %s (read %zu bytes)\n", path, readBytes);
+    free(temp_buffer);
+    return NULL;
+  }
+    
+    memcpy(rsx_texture_mem, temp_buffer, imageSize);
+    free(temp_buffer);
     fclose(file);
 
     printf("Image loaded successfully (%d bytes): %s\n", (int)imageSize, path);
-    return buffer;
+    return rsx_texture_mem;
   
 }
 
@@ -68,13 +88,13 @@ void load_and_draw_bg(rsxBuffer* fb, const char* filename, const char* batch, in
   snprintf(path_buffer, sizeof(path_buffer), "%s%s", batch, filename);
 
   
-  void* imageData = load_raw_argb(path_buffer, width, height);
-  if (!imageData) {
-    printf("Failed to load image: %s\n", path_buffer);
-    return;
-  }
-  drawImage(fb, imageData, width, height);
-  free(imageData);
+  //void* imageData = load_raw_argb(path_buffer, width, height);
+  //if (!imageData) {
+    //printf("Failed to load image: %s\n", path_buffer);
+    //return;
+  //}
+  //drawImage(fb, imageData, width, height);
+  //free(imageData);
 
   // Sanity check for the CPU, if it shows some background image then it is working.
 }
@@ -121,14 +141,16 @@ int main(s32 argc, const char* argv[])
   u16 width = 1280;
   u16 height = 720;
   int i;
+
+  host_addr = memalign (1024*1024, HOST_SIZE);
+  context = initScreen (host_addr, HOST_SIZE);
   
   load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
   // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
  
   /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
    * to be our shared IO memory with the RSX. */
-  host_addr = memalign (1024*1024, HOST_SIZE);
-  context = initScreen (host_addr, HOST_SIZE);
+  
   ioPadInit(7);
 
   getResolution(&width, &height);
