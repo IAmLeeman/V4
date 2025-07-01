@@ -83,20 +83,29 @@ void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int heig
   
 }
 
-void load_and_draw_bg(rsxBuffer* fb, const char* filename, const char* batch, int width, int height){
+void load_raw_argb(rsxBuffer* buffer, const char* path, const char* batch, int width, int height) {
+  // Only for testing purposes, this function loads a raw ARGB image file
 
-  snprintf(path_buffer, sizeof(path_buffer), "%s%s", batch, filename);
+  snprintf(path_buffer, sizeof(path_buffer), "%s%s", batch, path);
 
+  FILE* file = fopen(path_buffer, "rb");
+  if (!file) {
+    printf("Failed to open image: %s\n", path);
+    return;
+  }
   
-  //void* imageData = load_raw_argb(path_buffer, width, height);
-  //if (!imageData) {
-    //printf("Failed to load image: %s\n", path_buffer);
-    //return;
-  //}
-  //drawImage(fb, imageData, width, height);
-  //free(imageData);
-
-  // Sanity check for the CPU, if it shows some background image then it is working.
+  size_t imageSize = width * height * 4; // Assuming ARGB format (4 bytes per pixel)
+  u8* imageData = (u8*)malloc(imageSize);
+  if (!imageData) {
+    printf("Failed to allocate memory for image data: %s\n", path);
+    fclose(file);
+    return;
+  }
+  // Draw the image data to the RSX buffer
+  drawImage(buffer, imageData, width, height);
+  
+  // Free the allocated memory for the image data
+  //rsxFree(imageData);
 }
 
 void drawFrame(rsxBuffer *buffer, long frame) {
@@ -127,6 +136,18 @@ void drawImage(rsxBuffer *buffer, const u8 *image_data, int image_width, int ima
   }
 }
 
+void createTexture(gcmTexture* texture, int width, int height){
+  texture->format = GCM_TEXTURE_FORMAT_A8R8G8B8;
+  texture->width = width;
+  texture->height = height;
+  //texture->mipMapCount = mipmapLevel + 1; // Mipmap level starts from 0
+  texture->pitch = width * 4; // Assuming ARGB format (4 bytes per pixel)
+  texture->offset = 0; // Offset in RSX memory, can be set later
+  //texture->swizzleMode = GCM_TEXTURE_SWIZZLE_MODE_NONE;
+  
+  printf("Creating texture: %dx%d\n", width, height);
+}
+
 int main(s32 argc, const char* argv[])
 {
   
@@ -144,8 +165,11 @@ int main(s32 argc, const char* argv[])
 
   host_addr = memalign (1024*1024, HOST_SIZE);
   context = initScreen (host_addr, HOST_SIZE);
+
+  gcmTexture backgroundTexture;
+  createTexture(&backgroundTexture, IMAGE_WIDTH, IMAGE_HEIGHT);
   
-  load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
+  load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
   // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
  
   /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
@@ -179,7 +203,7 @@ int main(s32 argc, const char* argv[])
     waitFlip(); // Wait for the last flip to finish, so we can draw to the old buffer
     //drawFrame(&buffers[currentBuffer], frame++); // Draw into the unused buffer
     //drawImage(&buffers[currentBuffer], imageData, IMAGE_WIDTH, IMAGE_HEIGHT);
-    //load_and_draw_bg(&buffers[currentBuffer], "bedroom.raw", BG_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
+    //load_raw_argb(&buffers[currentBuffer], "bedroom.raw", BG_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
     //load_and_draw_bg(&buffers[currentBuffer], "2r.raw", MONIKA_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
     // This is not SDL - you can't layer one image over another and call it a day.
     
