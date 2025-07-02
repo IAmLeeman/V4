@@ -35,10 +35,21 @@
 #define SAYORI_PATH "/dev_hdd0/images/sayori/"
 
 gcmContextData *context;
+gcmTexture backgroundTexture;
+
 uint8_t *rawTexture = NULL;
 void *host_addr = NULL;
 
 char path_buffer[256];    // Stores the path to the image file
+
+  typedef struct {
+  float x, y, z, w;
+  float u, v; // Texture coordinates
+  uint32_t colour;
+} Vertex;
+
+
+
 
 void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){
 
@@ -159,12 +170,15 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   rsxLoadTexture(context, 0, texture);
 }
 
-typedef struct {
-  float x, y, z, w;
-  float u, v; // Texture coordinates
-} Vertex;
+void createQuad(){
 
-Vertex quadVertices[6] = {
+  void* vertexBufferRSX = rsxMemalign(128, sizeof(Vertex) * 6);
+  if (!vertexBufferRSX) {
+    printf("Failed to allocate memory for vertex buffer\n");
+    return;
+  }
+
+  Vertex quadVertices[6] = {
   { -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f }, // Bottom-left
   {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 1.0f }, // Bottom-right
   { -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.0f }, // Top-left
@@ -172,11 +186,24 @@ Vertex quadVertices[6] = {
   { -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.0f }, // Top-left
   {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 1.0f }, // Bottom-right
   {  1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f }  // Top-right
-};
+  };
+  memcpy(vertexBufferRSX, quadVertices, sizeof(Vertex));
+
+  
+  rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
+
+  //rsxBindTexture(context, 0, &backgroundTexture); // Bind the texture to the RSX context
+
+}
+
+
+
 
 
 int main(s32 argc, const char* argv[])
 {
+
+
   
   //sysModuleLoad(SYSMODULE_FS);
   //sysModuleLoad(SYSMODULE_AUDIO);
@@ -198,8 +225,10 @@ int main(s32 argc, const char* argv[])
   
   void* imageData = load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
+  createQuad(); // Create the quad to draw the image on the screen.
+
   // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
-  rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6); // This should draw a 1280 x 720 quad.
+   // This should draw a 1280 x 720 quad.
   /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
    * to be our shared IO memory with the RSX. */
   
