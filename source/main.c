@@ -136,16 +136,27 @@ void drawImage(rsxBuffer *buffer, const u8 *image_data, int image_width, int ima
   }
 }
 
-void createTexture(gcmTexture* texture, int width, int height){
+void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   texture->format = GCM_TEXTURE_FORMAT_A8R8G8B8;
   texture->width = width;
   texture->height = height;
+  texture->dimension = GCM_TEXTURE_DIMS_2D;
   //texture->mipMapCount = mipmapLevel + 1; // Mipmap level starts from 0
   texture->pitch = width * 4; // Assuming ARGB format (4 bytes per pixel)
   texture->offset = 0; // Offset in RSX memory, can be set later
+  texture->cubemap = GCM_FALSE;
+
+  texture->location = GCM_LOCATION_RSX;
   //texture->swizzleMode = GCM_TEXTURE_SWIZZLE_MODE_NONE;
+  rsxAddressToOffset(imageData, &texture->offset);
   
   printf("Creating texture: %dx%d\n", width, height);
+  if (rsxAddressToOffset(imageData, &texture->offset)) {
+    printf("Failed to convert address to offset for texture: %dx%d\n", width, height);
+    return;
+  }
+
+  rsxLoadTexture(context, 0, texture);
 }
 
 int main(s32 argc, const char* argv[])
@@ -167,9 +178,10 @@ int main(s32 argc, const char* argv[])
   context = initScreen (host_addr, HOST_SIZE);
 
   gcmTexture backgroundTexture;
-  createTexture(&backgroundTexture, IMAGE_WIDTH, IMAGE_HEIGHT);
   
-  load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
+  
+  void* imageData = load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
+  createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
   // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
  
   /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
