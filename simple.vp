@@ -1,0 +1,19 @@
+!!ARBvp1.0
+OPTION NV_vertex_program3;
+# cgc version 3.1.0013, build date Apr 24 2012
+# command line args: -profile vp40
+# source file: simple.cg
+#vendor NVIDIA Corporation
+#version 3.1.0.13
+#profile vp40
+#program main
+#var float4 position : $vin.POSITION : POSITION : 0 : 1
+#var float2 texcoord : $vin.TEXCOORD0 : TEXCOORD0 : 1 : 1
+#var float4 oPosition : $vout.POSITION : HPOS : 2 : 1
+#var float2 oTexcoord : $vout.TEXCOORD0 : TEX0 : 3 : 1
+TEMP RC, HC;
+BB0:
+MOV   result.position, vertex.position;
+MOV   result.texcoord[0].xy, vertex.texcoord[0];
+END
+# 2 instructions, 0 R-regs

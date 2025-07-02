@@ -189,6 +189,13 @@ void createQuad(){
   };
   memcpy(vertexBufferRSX, quadVertices, sizeof(Vertex));
 
+  u32 offset;
+  rsxAddressToOffset(vertexBufferRSX, &offset);
+
+  //rsxLoadVertexProgram(context, 0, "vertex_program.vp", NULL);
+  // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
+
+  
   
   rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
 
