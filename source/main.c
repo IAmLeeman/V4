@@ -39,6 +39,7 @@ gcmTexture backgroundTexture;
 
 uint8_t *rawTexture = NULL;
 void *host_addr = NULL;
+void* shaderData = NULL; // Pointer to the vertex program data
 
 char path_buffer[256];    // Stores the path to the image file
 
@@ -170,6 +171,33 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   rsxLoadTexture(context, 0, texture);
 }
 
+void loadShader(){
+  FILE* file = fopen("/dev_hdd0/V4.20/simple.vp", "rb");
+  if (!file) {
+    printf("Failed to open vertex program file\n");
+    return;
+  }
+  fseek(file, 0, SEEK_END);
+  size_t size = ftell(file);
+  rewind(file);
+
+  void* shaderData = rsxMemalign(size,16);
+  if (!shaderData) {
+    printf("Failed to allocate memory for vertex program\n");
+    fclose(file);
+    return;
+  }
+  size_t bytesRead = fread(shaderData, 1, size, file);
+  fclose(file);
+
+  if (bytesRead != size) {
+    printf("Failed to read entire shader file\n");
+    //rsxMemfree(shaderData);
+    return;
+  }
+
+}
+
 void createQuad(){
 
   void* vertexBufferRSX = rsxMemalign(128, sizeof(Vertex) * 6);
@@ -187,12 +215,15 @@ void createQuad(){
   {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 1.0f }, // Bottom-right
   {  1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f }  // Top-right
   };
-  memcpy(vertexBufferRSX, quadVertices, sizeof(Vertex));
+  memcpy(vertexBufferRSX, quadVertices, sizeof(Vertex) * 6);
 
   u32 offset;
   rsxAddressToOffset(vertexBufferRSX, &offset);
 
-  //rsxLoadVertexProgram(context, 0, "vertex_program.vp", NULL);
+  //rsxSetVertexAttribPointer(context, 0, 4, GCM_TRUE, sizeof(Vertex), (void*)offset);
+  rsxBindVertexArrayAttrib(context, 0, (void*)offset, sizeof(Vertex), 1,0,0,0); // Position
+  //rsxLoadVertexProgram(context, shaderData, 0);
+  // Can't just push it as a string, it needs to be actually loaded into memory.
   // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
 
   
@@ -202,10 +233,6 @@ void createQuad(){
   //rsxBindTexture(context, 0, &backgroundTexture); // Bind the texture to the RSX context
 
 }
-
-
-
-
 
 int main(s32 argc, const char* argv[])
 {
@@ -231,6 +258,7 @@ int main(s32 argc, const char* argv[])
   
   
   void* imageData = load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
+  loadShader();
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
   createQuad(); // Create the quad to draw the image on the screen.
 
