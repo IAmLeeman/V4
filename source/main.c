@@ -159,6 +159,22 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   rsxLoadTexture(context, 0, texture);
 }
 
+typedef struct {
+  float x, y, z, w;
+  float u, v; // Texture coordinates
+} Vertex;
+
+Vertex quadVertices[6] = {
+  { -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f }, // Bottom-left
+  {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 1.0f }, // Bottom-right
+  { -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.0f }, // Top-left
+
+  { -1.0f,  1.0f, 0.0f, 1.0f, 0.0f, 0.0f }, // Top-left
+  {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f, 1.0f }, // Bottom-right
+  {  1.0f,  1.0f, 0.0f, 1.0f, 1.0f, 0.0f }  // Top-right
+};
+
+
 int main(s32 argc, const char* argv[])
 {
   
@@ -183,7 +199,7 @@ int main(s32 argc, const char* argv[])
   void* imageData = load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
   // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
- 
+  rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6); // This should draw a 1280 x 720 quad.
   /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
    * to be our shared IO memory with the RSX. */
   
