@@ -36,10 +36,11 @@
 
 gcmContextData *context;
 gcmTexture backgroundTexture;
+rsxVertexProgram vertexProgram;
 
 uint8_t *rawTexture = NULL;
 void *host_addr = NULL;
-void* shaderData = NULL; // Pointer to the vertex program data
+
 
 char path_buffer[256];    // Stores the path to the image file
 
@@ -52,7 +53,7 @@ char path_buffer[256];    // Stores the path to the image file
 
 
 
-void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){
+void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){ // This part works
 
   FILE* file = fopen(path, "rb");
   if (!file) {
@@ -171,12 +172,13 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   rsxLoadTexture(context, 0, texture);
 }
 
-void loadShader(){
-  FILE* file = fopen("/dev_hdd0/V4.20/simple.vp", "rb");
+void loadShader(const char* shaderFile){
+  FILE* file = fopen(shaderFile, "rb");
   if (!file) {
     printf("Failed to open vertex program file\n");
     return;
   }
+  
   fseek(file, 0, SEEK_END);
   size_t size = ftell(file);
   rewind(file);
@@ -187,15 +189,29 @@ void loadShader(){
     fclose(file);
     return;
   }
+
+  printf("File size reported: %lu bytes\n", (unsigned long)size);
+       
   size_t bytesRead = fread(shaderData, 1, size, file);
+  printf("Bytes read from file: %lu\n", (unsigned long)bytesRead);
+
+  if (bytesRead != size) {
+    printf("Warning: bytesRead != size!\n");
+  }
   fclose(file);
+
+  printf("Shader data starts with: %02X %02X %02X %02X\n", 
+     ((uint8_t*)shaderData)[0], 
+     ((uint8_t*)shaderData)[1],
+     ((uint8_t*)shaderData)[2],
+     ((uint8_t*)shaderData)[3]);
 
   if (bytesRead != size) {
     printf("Failed to read entire shader file\n");
     //rsxMemfree(shaderData);
     return;
   }
-
+  rsxLoadVertexProgram(context, &vertexProgram, shaderData);
 }
 
 void createQuad(){
@@ -221,12 +237,11 @@ void createQuad(){
   rsxAddressToOffset(vertexBufferRSX, &offset);
 
   //rsxSetVertexAttribPointer(context, 0, 4, GCM_TRUE, sizeof(Vertex), (void*)offset);
-  rsxBindVertexArrayAttrib(context, 0, (void*)offset, sizeof(Vertex), 1,0,0,0); // Position
-  //rsxLoadVertexProgram(context, shaderData, 0);
+  rsxBindVertexArrayAttrib(context, 0, offset, sizeof(Vertex), 4,1,0,0); // Position
+  rsxBindVertexArrayAttrib(context, 1, offset + offsetof(Vertex, u), sizeof(Vertex), 2, 1, 1, 0); // UV as float
+  
   // Can't just push it as a string, it needs to be actually loaded into memory.
   // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
-
-  
   
   rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
 
@@ -254,11 +269,11 @@ int main(s32 argc, const char* argv[])
   host_addr = memalign (1024*1024, HOST_SIZE);
   context = initScreen (host_addr, HOST_SIZE);
 
-  gcmTexture backgroundTexture;
   
   
-  void* imageData = load_image_to_RSX(BG_PATH "class.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
-  loadShader();
+  void* imageData = load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
+  loadShader("/dev_hdd0/V4.20/simple.vp");
+  loadShader("/dev_hdd0/V4.20/fragShader.fp");
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
   createQuad(); // Create the quad to draw the image on the screen.
 
