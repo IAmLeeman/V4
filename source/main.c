@@ -37,6 +37,15 @@
 gcmContextData *context;
 gcmTexture backgroundTexture;
 rsxVertexProgram vertexProgram;
+rsxFragmentProgram fragmentProgram;
+
+gcmSurface testSurface;
+
+int currentBuffer; // Current buffer index for double buffering
+rsxBuffer buffers[MAX_BUFFERS]; // Array of buffers for double buffering
+void* shader;
+void* fragShader;
+
 
 uint8_t *rawTexture = NULL;
 void *host_addr = NULL;
@@ -49,9 +58,6 @@ char path_buffer[256];    // Stores the path to the image file
   float u, v; // Texture coordinates
   uint32_t colour;
 } Vertex;
-
-
-
 
 void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){ // This part works
 
@@ -172,7 +178,7 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   rsxLoadTexture(context, 0, texture);
 }
 
-void loadShader(const char* shaderFile){
+void* loadShader(const char* shaderFile){
   FILE* file = fopen(shaderFile, "rb");
   if (!file) {
     printf("Failed to open vertex program file\n");
@@ -211,7 +217,7 @@ void loadShader(const char* shaderFile){
     //rsxMemfree(shaderData);
     return;
   }
-  rsxLoadVertexProgram(context, &vertexProgram, shaderData);
+  return shaderData; // Return the shader data to be used later.
 }
 
 void createQuad(){
@@ -244,6 +250,7 @@ void createQuad(){
   // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
   
   rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
+  rsxSetSurface(context, &testSurface); // Set the surface to draw on
 
   //rsxBindTexture(context, 0, &backgroundTexture); // Bind the texture to the RSX context
 
@@ -258,25 +265,27 @@ int main(s32 argc, const char* argv[])
   //sysModuleLoad(SYSMODULE_AUDIO);
   //cellAudioInit();
   
-  rsxBuffer buffers[MAX_BUFFERS];
-  int currentBuffer = 0;
+  buffers[MAX_BUFFERS];
+  currentBuffer = 0;
   padInfo padinfo;
   padData paddata;
   u16 width = 1280;
   u16 height = 720;
   int i;
 
+  // Assuming you have a buffers array with your framebuffers
+// and context is your RSX context pointer
+
   host_addr = memalign (1024*1024, HOST_SIZE);
   context = initScreen (host_addr, HOST_SIZE);
 
-  
-  
   void* imageData = load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
-  loadShader("/dev_hdd0/V4.20/simple.vp");
-  loadShader("/dev_hdd0/V4.20/fragShader.fp");
+  shader = loadShader("/dev_hdd0/V4.20/simple.vp");
+  fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
   createQuad(); // Create the quad to draw the image on the screen.
-
+  rsxLoadVertexProgram(context, &vertexProgram, shader);
+  //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
   // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
    // This should draw a 1280 x 720 quad.
   /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
