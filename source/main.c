@@ -41,6 +41,9 @@ rsxFragmentProgram fragmentProgram;
 
 gcmSurface testSurface;
 
+u32 *texture_buffer;
+u32 texture_offset;
+
 int currentBuffer; // Current buffer index for double buffering
 rsxBuffer buffers[MAX_BUFFERS]; // Array of buffers for double buffering
 void* shader;
@@ -121,7 +124,7 @@ void load_raw_argb(rsxBuffer* buffer, const char* path, const char* batch, int w
     return;
   }
   // Draw the image data to the RSX buffer
-  drawImage(buffer, imageData, width, height);
+  //init_texture(imageData);
   
   // Free the allocated memory for the image data
   //rsxFree(imageData);
@@ -162,7 +165,7 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   texture->dimension = GCM_TEXTURE_DIMS_2D;
   //texture->mipMapCount = mipmapLevel + 1; // Mipmap level starts from 0
   texture->pitch = width * 4; // Assuming ARGB format (4 bytes per pixel)
-  texture->offset = 0; // Offset in RSX memory, can be set later
+  texture->offset = texture_offset; // Offset in RSX memory, can be set later
   texture->cubemap = GCM_FALSE;
 
   texture->location = GCM_LOCATION_RSX;
@@ -182,7 +185,7 @@ void* loadShader(const char* shaderFile){
   FILE* file = fopen(shaderFile, "rb");
   if (!file) {
     printf("Failed to open vertex program file\n");
-    return;
+    return NULL;
   }
   
   fseek(file, 0, SEEK_END);
@@ -193,7 +196,7 @@ void* loadShader(const char* shaderFile){
   if (!shaderData) {
     printf("Failed to allocate memory for vertex program\n");
     fclose(file);
-    return;
+    return NULL;
   }
 
   printf("File size reported: %lu bytes\n", (unsigned long)size);
@@ -215,12 +218,13 @@ void* loadShader(const char* shaderFile){
   if (bytesRead != size) {
     printf("Failed to read entire shader file\n");
     //rsxMemfree(shaderData);
-    return;
+    return NULL;
   }
   return shaderData; // Return the shader data to be used later.
 }
 
 void createQuad(){
+
 
   void* vertexBufferRSX = rsxMemalign(128, sizeof(Vertex) * 6);
   if (!vertexBufferRSX) {
@@ -250,17 +254,34 @@ void createQuad(){
   // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
   
   rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
-  rsxSetSurface(context, &testSurface); // Set the surface to draw on
+  //rsxSetSurface(context, &testSurface); // Set the surface to draw on
 
   //rsxBindTexture(context, 0, &backgroundTexture); // Bind the texture to the RSX context
 
 }
 
+void init_texture(u8 data)
+{
+	u32 i;
+	u8 *buffer;
+	
+
+	texture_buffer = (u32*)rsxMemalign(128,(IMAGE_WIDTH*IMAGE_HEIGHT*4));
+	if(!texture_buffer) return;
+
+	rsxAddressToOffset(texture_buffer,&texture_offset);
+
+	buffer = (u8*)texture_buffer;
+	for(i=0;i<IMAGE_WIDTH*IMAGE_HEIGHT*4;i+=4) {
+		buffer[i + 1] = data++;
+		buffer[i + 2] = data++;
+		buffer[i + 3] = data++;
+		buffer[i + 0] = data++;
+	}
+}
+
 int main(s32 argc, const char* argv[])
 {
-
-
-  
   //sysModuleLoad(SYSMODULE_FS);
   //sysModuleLoad(SYSMODULE_AUDIO);
   //cellAudioInit();
@@ -280,16 +301,14 @@ int main(s32 argc, const char* argv[])
   context = initScreen (host_addr, HOST_SIZE);
 
   void* imageData = load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
-  shader = loadShader("/dev_hdd0/V4.20/simple.vp");
-  fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
+  //shader = loadShader("/dev_hdd0/V4.20/simple.vp");
+  //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
-  createQuad(); // Create the quad to draw the image on the screen.
-  rsxLoadVertexProgram(context, &vertexProgram, shader);
+  //createQuad(); // Create the quad to draw the image on the screen.
+  //rsxLoadVertexProgram(context, &vertexProgram, shader);
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
-  // void* imageData = load_raw_argb(BG_PATH + "bedroom.raw", width, height); // Nice try, this would work in Python but not C.
-   // This should draw a 1280 x 720 quad.
-  /* Allocate a 1Mb buffer, aligned to a 1Mb boundary                          
-   * to be our shared IO memory with the RSX. */
+   // Draw the image data to the RSX buffer.
+  
   
   ioPadInit(7);
 
@@ -307,9 +326,10 @@ int main(s32 argc, const char* argv[])
     /*ioPadGetInfo(&padinfo);
     for(i=0; i<MAX_PADS; i++){
       if(padinfo.status[i]){
-	ioPadGetData(i, &paddata);
+	ioPadGetData(i, &paddata);*/
 				
-	if(paddata.BTN_START){
+    drawImage(&buffers[0], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads a single image into the first buffer.
+	/*if(paddata.BTN_START){
 	  goto end;
 	}
       }
