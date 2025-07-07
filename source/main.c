@@ -1,6 +1,6 @@
 // DOKI DOKI LITERATURE CLUB //
 // PS3 PORT // 
-// SUPAHAXOR // 30/06/2025 //
+// SUPAHAXOR // 07/07/2025 //
 // GAME IS COPYRIGHT TO TEAM SALVATO //
 // V4.20 // SOURCE.c //
 
@@ -103,31 +103,6 @@ void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int heig
     printf("Image loaded successfully (%d bytes): %s\n", (int)imageSize, path);
     return rsx_texture_mem;
   
-}
-
-void load_raw_argb(rsxBuffer* buffer, const char* path, const char* batch, int width, int height) {
-  // Only for testing purposes, this function loads a raw ARGB image file
-
-  snprintf(path_buffer, sizeof(path_buffer), "%s%s", batch, path);
-
-  FILE* file = fopen(path_buffer, "rb");
-  if (!file) {
-    printf("Failed to open image: %s\n", path);
-    return;
-  }
-  
-  size_t imageSize = width * height * 4; // Assuming ARGB format (4 bytes per pixel)
-  u8* imageData = (u8*)malloc(imageSize);
-  if (!imageData) {
-    printf("Failed to allocate memory for image data: %s\n", path);
-    fclose(file);
-    return;
-  }
-  // Draw the image data to the RSX buffer
-  //init_texture(imageData);
-  
-  // Free the allocated memory for the image data
-  //rsxFree(imageData);
 }
 
 void drawFrame(rsxBuffer *buffer, long frame) {
@@ -247,7 +222,7 @@ void createQuad(){
   rsxAddressToOffset(vertexBufferRSX, &offset);
 
   //rsxSetVertexAttribPointer(context, 0, 4, GCM_TRUE, sizeof(Vertex), (void*)offset);
-  rsxBindVertexArrayAttrib(context, 0, offset, sizeof(Vertex), 4,1,0,0); // Position
+  rsxBindVertexArrayAttrib(context, GCM_VERTEX_ATTRIB_POS, 0, offset, sizeof(Vertex), 3,GCM_VERTEX_DATA_TYPE_F32,GCM_LOCATION_RSX); // Position
   rsxBindVertexArrayAttrib(context, 1, offset + offsetof(Vertex, u), sizeof(Vertex), 2, 1, 1, 0); // UV as float
   
   // Can't just push it as a string, it needs to be actually loaded into memory.
@@ -304,7 +279,7 @@ int main(s32 argc, const char* argv[])
   //shader = loadShader("/dev_hdd0/V4.20/simple.vp");
   //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
-  //createQuad(); // Create the quad to draw the image on the screen.
+  createQuad(); // Create the quad to draw the image on the screen.
   //rsxLoadVertexProgram(context, &vertexProgram, shader);
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
    // Draw the image data to the RSX buffer.
@@ -329,6 +304,7 @@ int main(s32 argc, const char* argv[])
 	ioPadGetData(i, &paddata);*/
 				
     drawImage(&buffers[0], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads a single image into the first buffer.
+    drawImage(&buffers[1], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads the same image into the second buffer.
 	/*if(paddata.BTN_START){
 	  goto end;
 	}
