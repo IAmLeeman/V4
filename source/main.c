@@ -3,6 +3,7 @@
 // SUPAHAXOR // 07/07/2025 //
 // GAME IS COPYRIGHT TO TEAM SALVATO //
 // V4.20 // SOURCE.c //
+// DOING YANDERE DEV PROUD //
 
 #include <ppu-lv2.h>
 
@@ -35,7 +36,10 @@
 #define SAYORI_PATH "/dev_hdd0/images/sayori/"
 
 gcmContextData *context;
+
 gcmTexture backgroundTexture;
+gcmTexture monikaTexture;
+
 rsxVertexProgram vertexProgram;
 rsxFragmentProgram fragmentProgram;
 
@@ -138,17 +142,26 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   texture->width = width;
   texture->height = height;
   texture->dimension = GCM_TEXTURE_DIMS_2D;
-  //texture->mipMapCount = mipmapLevel + 1; // Mipmap level starts from 0
+  texture->mipmap = 0; // No mipmaps for this texture
   texture->pitch = width * 4; // Assuming ARGB format (4 bytes per pixel)
   texture->offset = texture_offset; // Offset in RSX memory, can be set later
   texture->cubemap = GCM_FALSE;
 
+  texture->remap		= ((GCM_TEXTURE_REMAP_TYPE_REMAP << GCM_TEXTURE_REMAP_TYPE_B_SHIFT) |
+						          (GCM_TEXTURE_REMAP_TYPE_REMAP << GCM_TEXTURE_REMAP_TYPE_G_SHIFT) |
+						          (GCM_TEXTURE_REMAP_TYPE_REMAP << GCM_TEXTURE_REMAP_TYPE_R_SHIFT) |
+						          (GCM_TEXTURE_REMAP_TYPE_REMAP << GCM_TEXTURE_REMAP_TYPE_A_SHIFT) |
+						          (GCM_TEXTURE_REMAP_COLOR_B << GCM_TEXTURE_REMAP_COLOR_B_SHIFT) |
+						          (GCM_TEXTURE_REMAP_COLOR_G << GCM_TEXTURE_REMAP_COLOR_G_SHIFT) |
+						          (GCM_TEXTURE_REMAP_COLOR_R << GCM_TEXTURE_REMAP_COLOR_R_SHIFT) |
+						          (GCM_TEXTURE_REMAP_COLOR_A << GCM_TEXTURE_REMAP_COLOR_A_SHIFT));
+
   texture->location = GCM_LOCATION_RSX;
   //texture->swizzleMode = GCM_TEXTURE_SWIZZLE_MODE_NONE;
-  rsxAddressToOffset(imageData, &texture->offset);
+  rsxAddressToOffset(imageData, &texture_offset);
   
   printf("Creating texture: %dx%d\n", width, height);
-  if (rsxAddressToOffset(imageData, &texture->offset)) {
+  if (rsxAddressToOffset(imageData, &texture_offset)) {
     printf("Failed to convert address to offset for texture: %dx%d\n", width, height);
     return;
   }
@@ -276,11 +289,14 @@ int main(s32 argc, const char* argv[])
   context = initScreen (host_addr, HOST_SIZE);
 
   void* imageData = load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
-  //shader = loadShader("/dev_hdd0/V4.20/simple.vp");
+  void* monikaData = load_image_to_RSX(MONIKA_PATH "a.raw", &buffers[0], 500, 500);
+  shader = loadShader("/dev_hdd0/V4.20/simple.vp");
+  rsxLoadVertexProgram(context, &vertexProgram, shader);
   //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
+  createTexture(&monikaTexture, monikaData, 500, 500); // Create the texture for Monika's image.
   createQuad(); // Create the quad to draw the image on the screen.
-  //rsxLoadVertexProgram(context, &vertexProgram, shader);
+  
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
    // Draw the image data to the RSX buffer.
   
@@ -304,7 +320,10 @@ int main(s32 argc, const char* argv[])
 	ioPadGetData(i, &paddata);*/
 				
     drawImage(&buffers[0], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads a single image into the first buffer.
+    
     drawImage(&buffers[1], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads the same image into the second buffer.
+    
+
 	/*if(paddata.BTN_START){
 	  goto end;
 	}
