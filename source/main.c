@@ -43,7 +43,7 @@ gcmTexture monikaTexture;
 rsxVertexProgram vertexProgram;
 rsxFragmentProgram fragmentProgram;
 
-gcmSurface testSurface;
+gcmSurface* testSurface;
 
 u32 *texture_buffer;
 u32 texture_offset;
@@ -137,7 +137,7 @@ void drawImage(rsxBuffer *buffer, const u8 *image_data, int image_width, int ima
   }
 }
 
-void createTexture(gcmTexture* texture, void* imageData, int width, int height){
+gcmTexture createTexture(gcmTexture* texture, void* imageData, int width, int height){
   texture->format = GCM_TEXTURE_FORMAT_A8R8G8B8;
   texture->width = width;
   texture->height = height;
@@ -163,10 +163,35 @@ void createTexture(gcmTexture* texture, void* imageData, int width, int height){
   printf("Creating texture: %dx%d\n", width, height);
   if (rsxAddressToOffset(imageData, &texture_offset)) {
     printf("Failed to convert address to offset for texture: %dx%d\n", width, height);
-    return;
+    //return texture;
   }
 
-  rsxLoadTexture(context, 0, texture);
+  return *texture; // Return the created texture
+
+  //rsxLoadTexture(context, 0, texture);
+}
+
+gcmSurface createSurface(gcmSurface* surface, rsxBuffer* buffer) {
+
+  surface->width = buffer->width;
+  surface->height = buffer->height;
+  surface->colorFormat =  GCM_SURFACE_X8R8G8B8;
+  surface->colorLocation[0] = GCM_LOCATION_RSX;
+  surface->depthPitch = buffer->width * 2; 
+  surface->colorPitch[0] = buffer->width * 4; // Assuming ARGB format (4 bytes per pixel)
+  surface->colorOffset[0] = buffer->offset; // Offset in RSX memory
+  surface->depthLocation = GCM_LOCATION_RSX;
+
+  surface->depthFormat = GCM_SURFACE_ZETA_Z16; // Using Z16 for depth format
+  surface->depthOffset = buffer->offset;
+
+  surface->type = 0x00;            // or SWIZZLED
+  surface->antiAlias = 0x00; // No anti-aliasing
+  surface->width = buffer->width;
+  surface->height = buffer->height;
+  surface->x = 0;
+  surface->y = 0;
+  return *surface;
 }
 
 void* loadShader(const char* shaderFile){
@@ -234,15 +259,14 @@ void createQuad(){
   u32 offset;
   rsxAddressToOffset(vertexBufferRSX, &offset);
 
-  //rsxSetVertexAttribPointer(context, 0, 4, GCM_TRUE, sizeof(Vertex), (void*)offset);
-  rsxBindVertexArrayAttrib(context, GCM_VERTEX_ATTRIB_POS, 0, offset, sizeof(Vertex), 3,GCM_VERTEX_DATA_TYPE_F32,GCM_LOCATION_RSX); // Position
-  rsxBindVertexArrayAttrib(context, 1, offset + offsetof(Vertex, u), sizeof(Vertex), 2, 1, 1, 0); // UV as float
   
+  rsxBindVertexArrayAttrib(context, GCM_VERTEX_ATTRIB_POS, 0, offset, sizeof(Vertex), 3,GCM_VERTEX_DATA_TYPE_F32,GCM_LOCATION_RSX); // Position
+  rsxBindVertexArrayAttrib(context, GCM_VERTEX_ATTRIB_TEX0, 1, (void*)(offset + offsetof(Vertex, u)), sizeof(Vertex), 2, GCM_VERTEX_DATA_TYPE_F32, GCM_LOCATION_RSX);
   // Can't just push it as a string, it needs to be actually loaded into memory.
   // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
   
   rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
-  //rsxSetSurface(context, &testSurface); // Set the surface to draw on
+  rsxSetSurface(context, &buffers[currentBuffer]); // Set the surface to draw on
 
   //rsxBindTexture(context, 0, &backgroundTexture); // Bind the texture to the RSX context
 
@@ -293,13 +317,13 @@ int main(s32 argc, const char* argv[])
   shader = loadShader("/dev_hdd0/V4.20/simple.vp");
   rsxLoadVertexProgram(context, &vertexProgram, shader);
   //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
-  createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
-  createTexture(&monikaTexture, monikaData, 500, 500); // Create the texture for Monika's image.
-  createQuad(); // Create the quad to draw the image on the screen.
+  gcmTexture newTexture = createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
+  gcmSurface newSurface = createSurface(testSurface, &buffers[currentBuffer]);//createTexture(&monikaTexture, monikaData, 500, 500); // Create the texture for Monika's image.
+  
   
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
    // Draw the image data to the RSX buffer.
-  
+  rsxLoadTexture(context, 1, &newTexture);
   
   ioPadInit(7);
 
@@ -318,10 +342,11 @@ int main(s32 argc, const char* argv[])
     for(i=0; i<MAX_PADS; i++){
       if(padinfo.status[i]){
 	ioPadGetData(i, &paddata);*/
-				
-    drawImage(&buffers[0], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads a single image into the first buffer.
+			
     
-    drawImage(&buffers[1], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads the same image into the second buffer.
+    //drawImage(&buffers[0], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads a single image into the first buffer.
+    
+    //drawImage(&buffers[1], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads the same image into the second buffer.
     
 
 	/*if(paddata.BTN_START){
