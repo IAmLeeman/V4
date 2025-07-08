@@ -318,7 +318,7 @@ int main(s32 argc, const char* argv[])
   rsxLoadVertexProgram(context, &vertexProgram, shader);
   //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   gcmTexture newTexture = createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
-  gcmSurface newSurface = createSurface(testSurface, &buffers[currentBuffer]);//createTexture(&monikaTexture, monikaData, 500, 500); // Create the texture for Monika's image.
+  gcmSurface newSurface = createSurface(&testSurface, &buffers[currentBuffer]);
   
   
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
