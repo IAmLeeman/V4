@@ -40,16 +40,18 @@ gcmContextData *context;
 gcmTexture backgroundTexture;
 gcmTexture monikaTexture;
 
+gcmSurface testSurface;
+
 rsxVertexProgram vertexProgram;
 rsxFragmentProgram fragmentProgram;
 
-gcmSurface* testSurface;
+rsxBuffer buffers[MAX_BUFFERS];
 
 u32 *texture_buffer;
 u32 texture_offset;
 
 int currentBuffer; // Current buffer index for double buffering
-rsxBuffer buffers[MAX_BUFFERS]; // Array of buffers for double buffering
+
 void* shader;
 void* fragShader;
 
@@ -171,27 +173,27 @@ gcmTexture createTexture(gcmTexture* texture, void* imageData, int width, int he
   //rsxLoadTexture(context, 0, texture);
 }
 
-gcmSurface createSurface(gcmSurface* surface, rsxBuffer* buffer) {
+gcmSurface createSurface(gcmSurface surface, rsxBuffer* buffer) {
 
-  surface->width = buffer->width;
-  surface->height = buffer->height;
-  surface->colorFormat =  GCM_SURFACE_X8R8G8B8;
-  surface->colorLocation[0] = GCM_LOCATION_RSX;
-  surface->depthPitch = buffer->width * 2; 
-  surface->colorPitch[0] = buffer->width * 4; // Assuming ARGB format (4 bytes per pixel)
-  surface->colorOffset[0] = buffer->offset; // Offset in RSX memory
-  surface->depthLocation = GCM_LOCATION_RSX;
+  memset(&surface, 0, sizeof(gcmSurface)); // Clear the surface structure
+  surface.width = buffer->width;
+  surface.height = buffer->height;
+  surface.colorFormat =  GCM_SURFACE_X8R8G8B8;
+  surface.colorLocation[0] = GCM_LOCATION_RSX;
+  surface.depthPitch = 0; 
+  surface.colorPitch[0] = buffer->width * 4; // Assuming ARGB format (4 bytes per pixel)
+  surface.colorOffset[0] = buffer->offset; // Offset in RSX memory
+  surface.depthLocation = GCM_LOCATION_RSX;
 
-  surface->depthFormat = GCM_SURFACE_ZETA_Z16; // Using Z16 for depth format
-  surface->depthOffset = buffer->offset;
+  surface.depthFormat = 0; // Using Z16 for depth format
+  surface.depthOffset = 0;
 
-  surface->type = 0x00;            // or SWIZZLED
-  surface->antiAlias = 0x00; // No anti-aliasing
-  surface->width = buffer->width;
-  surface->height = buffer->height;
-  surface->x = 0;
-  surface->y = 0;
-  return *surface;
+  surface.type = 0x00;            // or SWIZZLED
+  surface.antiAlias = 0x00; // No anti-aliasing
+  
+  surface.x = 0;
+  surface.y = 0;
+  return surface;
 }
 
 void* loadShader(const char* shaderFile){
@@ -236,9 +238,9 @@ void* loadShader(const char* shaderFile){
   return shaderData; // Return the shader data to be used later.
 }
 
-void createQuad(){
+void createQuad(rsxBuffer* buffer, gcmSurface* surface) {
 
-
+  rsxSetSurface(context, surface); // Set the surface to draw on
   void* vertexBufferRSX = rsxMemalign(128, sizeof(Vertex) * 6);
   if (!vertexBufferRSX) {
     printf("Failed to allocate memory for vertex buffer\n");
@@ -266,10 +268,6 @@ void createQuad(){
   // We need to write a vertex program to handle the vertex data... Whatever the hell that is.
   
   rsxDrawVertexArray(context, GCM_TYPE_TRIANGLES, 0, 6);
-  rsxSetSurface(context, &buffers[currentBuffer]); // Set the surface to draw on
-
-  //rsxBindTexture(context, 0, &backgroundTexture); // Bind the texture to the RSX context
-
 }
 
 void init_texture(u8 data)
@@ -298,7 +296,7 @@ int main(s32 argc, const char* argv[])
   //sysModuleLoad(SYSMODULE_AUDIO);
   //cellAudioInit();
   
-  buffers[MAX_BUFFERS];
+  
   currentBuffer = 0;
   padInfo padinfo;
   padData paddata;
@@ -318,8 +316,8 @@ int main(s32 argc, const char* argv[])
   rsxLoadVertexProgram(context, &vertexProgram, shader);
   //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   gcmTexture newTexture = createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
-  gcmSurface newSurface = createSurface(&testSurface, &buffers[currentBuffer]);
-  
+  gcmSurface newSurface = createSurface(testSurface, &buffers[currentBuffer]);
+  // Whilst these don't need returning, I just prefer them to.
   
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
    // Draw the image data to the RSX buffer.
@@ -337,37 +335,22 @@ int main(s32 argc, const char* argv[])
 	
   // Ok, everything is setup. Now for the main loop.
   while(1){
-    // Check the pads.
-    /*ioPadGetInfo(&padinfo);
-    for(i=0; i<MAX_PADS; i++){
-      if(padinfo.status[i]){
-	ioPadGetData(i, &paddata);*/
-			
-    
-    //drawImage(&buffers[0], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads a single image into the first buffer.
-    
-    //drawImage(&buffers[1], imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Loads the same image into the second buffer.
-    
 
-	/*if(paddata.BTN_START){
-	  goto end;
-	}
-      }
-			
-    } */
-
-    waitFlip(); // Wait for the last flip to finish, so we can draw to the old buffer
-    //drawFrame(&buffers[currentBuffer], frame++); // Draw into the unused buffer
-    //drawImage(&buffers[currentBuffer], imageData, IMAGE_WIDTH, IMAGE_HEIGHT);
-    //load_raw_argb(&buffers[currentBuffer], "bedroom.raw", BG_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
-    //load_and_draw_bg(&buffers[currentBuffer], "2r.raw", MONIKA_PATH, IMAGE_WIDTH, IMAGE_HEIGHT);
-    // This is not SDL - you can't layer one image over another and call it a day.
+    createQuad(&buffers[currentBuffer], &newSurface); // Create a quad to draw on the screen.
+    newSurface.colorOffset[0] = buffers[currentBuffer].offset; // Offset in RSX memory
+    rsxSetSurface(context, &newSurface); // Set the surface to draw on
     
+		u32 color = 0xFFFF0000; // dark red ARGB
+    rsxSetClearColor(context, color);
+    rsxClearSurface(context, GCM_CLEAR_R | GCM_CLEAR_G | GCM_CLEAR_B | GCM_CLEAR_A | GCM_CLEAR_Z);
+    
+    rsxFlushBuffer(context);
+    rsxFinish(context, 0);
+
     flip(context, buffers[currentBuffer].id); // Flip buffer onto screen
-
-    currentBuffer++;
-    if (currentBuffer >= MAX_BUFFERS)
-      currentBuffer = 0;
+    waitFlip(); // Wait for the last flip to finish, so we can draw to the old buffer
+    
+    currentBuffer = (currentBuffer + 1) % MAX_BUFFERS; // Switch to the next buffer
   }
   
  end:
