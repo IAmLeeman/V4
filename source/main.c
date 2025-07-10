@@ -22,6 +22,7 @@
 
 #include <io/pad.h>
 #include "rsxutil.h"
+#include "rsx/rsx_program.h"
 
 #include <audio/audio.h>
 //#include <cell/fs/cell_fs_file_api.h>
@@ -305,7 +306,7 @@ int main(s32 argc, const char* argv[])
   int i;
 
   // Assuming you have a buffers array with your framebuffers
-// and context is your RSX context pointer
+  // and context is your RSX context pointer
 
   host_addr = memalign (1024*1024, HOST_SIZE);
   context = initScreen (host_addr, HOST_SIZE);
@@ -321,7 +322,7 @@ int main(s32 argc, const char* argv[])
   
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
    // Draw the image data to the RSX buffer.
-  rsxLoadTexture(context, 1, &newTexture);
+  //rsxLoadTexture(context, 1, &newTexture);
   
   ioPadInit(7);
 
@@ -332,6 +333,8 @@ int main(s32 argc, const char* argv[])
   flip(context, MAX_BUFFERS - 1);
   
   long frame = 0; // To keep track of how many frames we have rendered.
+
+  rsxSetClearColor(context, 0xFFFF0000);
 	
   // Ok, everything is setup. Now for the main loop.
   while(1){
@@ -340,8 +343,8 @@ int main(s32 argc, const char* argv[])
     newSurface.colorOffset[0] = buffers[currentBuffer].offset; // Offset in RSX memory
     rsxSetSurface(context, &newSurface); // Set the surface to draw on
     
-		u32 color = 0xFFFF0000; // dark red ARGB
-    rsxSetClearColor(context, color);
+		
+     // Set the clear color to dark red);
     rsxClearSurface(context, GCM_CLEAR_R | GCM_CLEAR_G | GCM_CLEAR_B | GCM_CLEAR_A | GCM_CLEAR_Z);
     
     rsxFlushBuffer(context);
@@ -350,7 +353,10 @@ int main(s32 argc, const char* argv[])
     flip(context, buffers[currentBuffer].id); // Flip buffer onto screen
     waitFlip(); // Wait for the last flip to finish, so we can draw to the old buffer
     
+    drawImage(&buffers[currentBuffer], monikaData, IMAGE_WIDTH, IMAGE_HEIGHT); // Draw the image data to the RSX buffer.
     currentBuffer = (currentBuffer + 1) % MAX_BUFFERS; // Switch to the next buffer
+
+    
   }
   
  end:
