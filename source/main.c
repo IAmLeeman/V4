@@ -1,6 +1,6 @@
 // DOKI DOKI LITERATURE CLUB //
 // PS3 PORT // 
-// SUPAHAXOR // 07/07/2025 //
+// SUPAHAXOR // 10/07/2025 //
 // GAME IS COPYRIGHT TO TEAM SALVATO //
 // V4.20 // SOURCE.c //
 // DOING YANDERE DEV PROUD //
@@ -48,6 +48,9 @@ rsxFragmentProgram fragmentProgram;
 
 rsxBuffer buffers[MAX_BUFFERS];
 
+u32 depthOffset;
+int depth_pitch; // Pitch for the depth buffer
+
 u32 *texture_buffer;
 u32 texture_offset;
 
@@ -55,6 +58,8 @@ int currentBuffer; // Current buffer index for double buffering
 
 void* shader;
 void* fragShader;
+
+
 
 
 uint8_t *rawTexture = NULL;
@@ -68,6 +73,15 @@ char path_buffer[256];    // Stores the path to the image file
   float u, v; // Texture coordinates
   uint32_t colour;
 } Vertex;
+
+void setupDepthBuffer(){
+  int depth_pitch = IMAGE_WIDTH * 2;
+  depth_pitch = (depth_pitch + 127) & ~127; // Align to 128 bytes
+  u32 depth_size = depth_pitch * IMAGE_HEIGHT;
+
+  void* depthBuffer = memalign(128, depth_size);
+  rsxAddressToOffset(depthBuffer, &depthOffset);
+}
 
 void* load_image_to_RSX(const char* path, rsxBuffer* buffer, int width, int height){ // This part works
 
@@ -181,13 +195,13 @@ gcmSurface createSurface(gcmSurface surface, rsxBuffer* buffer) {
   surface.height = buffer->height;
   surface.colorFormat =  GCM_SURFACE_X8R8G8B8;
   surface.colorLocation[0] = GCM_LOCATION_RSX;
-  surface.depthPitch = 0; 
+  surface.depthPitch = depth_pitch; // Assuming depth buffer pitch is set
   surface.colorPitch[0] = buffer->width * 4; // Assuming ARGB format (4 bytes per pixel)
   surface.colorOffset[0] = buffer->offset; // Offset in RSX memory
   surface.depthLocation = GCM_LOCATION_RSX;
 
-  surface.depthFormat = 0; // Using Z16 for depth format
-  surface.depthOffset = 0;
+  surface.depthFormat = GCM_SURFACE_ZETA_Z16; // Assuming 16-bit depth format
+  surface.depthOffset = depthOffset; // Offset in RSX memory for depth buffer
 
   surface.type = 0x00;            // or SWIZZLED
   surface.antiAlias = 0x00; // No anti-aliasing
@@ -296,7 +310,9 @@ int main(s32 argc, const char* argv[])
   //sysModuleLoad(SYSMODULE_FS);
   //sysModuleLoad(SYSMODULE_AUDIO);
   //cellAudioInit();
-  
+ 
+ 
+
   
   currentBuffer = 0;
   padInfo padinfo;
@@ -305,11 +321,21 @@ int main(s32 argc, const char* argv[])
   u16 height = 720;
   int i;
 
+  setupDepthBuffer(); // Setup the depth buffer for rendering
   // Assuming you have a buffers array with your framebuffers
   // and context is your RSX context pointer
 
   host_addr = memalign (1024*1024, HOST_SIZE);
   context = initScreen (host_addr, HOST_SIZE);
+
+  rsxSetBlendEnable(context, GCM_TRUE);
+
+  rsxSetBlendFunc(context,
+    GCM_SRC_ALPHA,    // Source blend factor
+    GCM_ONE_MINUS_SRC_ALPHA, // Destination blend factor
+    GCM_SRC_ALPHA,    // Alpha blend factor for source
+    GCM_ONE_MINUS_SRC_ALPHA  // Alpha blend factor for destination
+  ); 
 
   void* imageData = load_image_to_RSX(BG_PATH "bedroom.raw", &buffers[0], IMAGE_WIDTH, IMAGE_HEIGHT);
   void* monikaData = load_image_to_RSX(MONIKA_PATH "a.raw", &buffers[0], 500, 500);
@@ -317,13 +343,15 @@ int main(s32 argc, const char* argv[])
   rsxLoadVertexProgram(context, &vertexProgram, shader);
   //fragShader = loadShader("/dev_hdd0/V4.20/fragShader.fp");
   gcmTexture newTexture = createTexture(&backgroundTexture, imageData, IMAGE_WIDTH, IMAGE_HEIGHT); // Need to return imageData and pass it into here.
+  gcmTexture monikaTexture = createTexture(&monikaTexture, monikaData, 960, 960); // Create texture for Monika image
   gcmSurface newSurface = createSurface(testSurface, &buffers[currentBuffer]);
   // Whilst these don't need returning, I just prefer them to.
   
   //rsxLoadFragmentProgram(context, &fragmentProgram, fragShader);
    // Draw the image data to the RSX buffer.
-  //rsxLoadTexture(context, 1, &newTexture);
-  
+  rsxLoadTexture(context, 1, &newTexture);
+  rsxLoadTexture(context, 1, &monikaTexture);
+
   ioPadInit(7);
 
   getResolution(&width, &height);
@@ -344,7 +372,7 @@ int main(s32 argc, const char* argv[])
     rsxSetSurface(context, &newSurface); // Set the surface to draw on
     
 		
-     // Set the clear color to dark red);
+    
     rsxClearSurface(context, GCM_CLEAR_R | GCM_CLEAR_G | GCM_CLEAR_B | GCM_CLEAR_A | GCM_CLEAR_Z);
     
     rsxFlushBuffer(context);
@@ -353,7 +381,7 @@ int main(s32 argc, const char* argv[])
     flip(context, buffers[currentBuffer].id); // Flip buffer onto screen
     waitFlip(); // Wait for the last flip to finish, so we can draw to the old buffer
     
-    drawImage(&buffers[currentBuffer], monikaData, IMAGE_WIDTH, IMAGE_HEIGHT); // Draw the image data to the RSX buffer.
+    drawImage(&buffers[currentBuffer], monikaData, 960, 960); // Draw the image data to the screen.
     currentBuffer = (currentBuffer + 1) % MAX_BUFFERS; // Switch to the next buffer
 
     
